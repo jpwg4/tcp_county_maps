@@ -875,9 +875,9 @@
                 const county = event.target;
                 const countyName = county.getAttribute('data-county');
                 
-                if (county.classList.contains('url-filled')) {
-                    return;
-                }
+           //     if (county.classList.contains('url-filled')) {
+           //         return;
+           //     }
                 
                 if (this.selectedCounties.has(countyName)) {
                     this.selectedCounties.delete(countyName);
