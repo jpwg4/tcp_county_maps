@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Texas County Map</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        #map-container {
+            position: relative;
+            width: 100%;
+            height: 700px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        #texas-map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .county {
+            fill: #e8e8e8;
+            stroke: #666;
+            stroke-width: 0.5;
+            cursor: pointer;
+            transition: fill 0.2s ease;
+        }
+        
+        .county:hover {
+            stroke-width: 1.5;
+            stroke: #000;
+        }
+        
+        .county.selected {
+            fill: #4CAF50;
+        }
+        
+        .county.url-filled {
+            cursor: default;
+        }
+        
+        .city {
+            fill: #ff4444;
+            stroke: #fff;
+            stroke-width: 0.3;
+        }
+        
+        .city-label {
+            font-family: Arial, sans-serif;
+            font-size: 4px;
+            font-weight: bold;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+        
+        .zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 1000;
+        }
+        
+        .help-controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+        }
+        
+        .help-btn {
+            background: #fff;
+            border: 1px solid #ccc;
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.2s;
+        }
+        
+        .help-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .zoom-btn {
+            background: #fff;
+            border: 1px solid #ccc;
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.2s;
+        }
+        
+        .zoom-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            pointer-events: none;
+            font-size: 14px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .selection-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        
+        .selection-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .selected-counties {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .county-tag {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .copy-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+            transition: background-color 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #1976D2;
+        }
+        
+        .copy-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .copy-success {
+            color: #4CAF50;
+            font-size: 12px;
+            margin-left: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .copy-success.show {
+            opacity: 1;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #d32f2f;
+            background: #ffebee;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .url-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .url-info.show {
+            display: block;
+        }
+        
+        .url-info h3 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+        
+        .url-info code {
+            background: #fff;
+            padding: 2px 4px;
+            border-radius: 2px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Interactive Texas County Map</h1>
+        <div class="loading" id="loading">Loading Texas county data...</div>
+        <div id="map-container" style="display: none;">
+            <svg id="texas-map">
+                <g id="map-content">
+                    <!-- Map content will be loaded here -->
+                </g>
+            </svg>
+            <div class="help-controls">
+                <button class="help-btn" id="help-toggle" title="Show URL Parameters Help">?</button>
+            </div>
+            <div class="zoom-controls">
+                <button class="zoom-btn" id="zoom-in" title="Zoom In">+</button>
+                <button class="zoom-btn" id="zoom-out" title="Zoom Out">−</button>
+                <button class="zoom-btn" id="zoom-reset" title="Reset View">⌂</button>
+            </div>
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+        <div class="selection-panel">
+            <h3>Selected Counties: 
+                <button class="copy-btn" id="copy-counties" title="Copy selected counties to clipboard">
+                    Copy List
+                </button>
+                <span class="copy-success" id="copy-success">Copied!</span>
+            </h3>
+            <div class="selected-counties" id="selected-counties">
+                <span style="color: #666; font-style: italic;">Click counties to select them</span>
+            </div>
+        </div>
+        
+        <div class="url-info">
+            <h3>URL Parameters for Highlighting Counties:</h3>
+            <p>You can highlight specific counties by adding URL parameters. The format is:</p>
+            <p><code>?county_CountyName=ColorCode</code></p>
+            <p><strong>Examples:</strong></p>
+            <ul>
+                <li><code>?county_Harris=ff0000</code> - Makes Harris County red</li>
+                <li><code>?county_Dallas=00ff00&county_Travis=0000ff</code> - Makes Dallas green and Travis blue</li>
+                <li><code>?county_Midland=ff6b35</code> - Makes Midland County orange</li>
+                <li><code>?county_Van%20Zandt=purple</code> - Makes Van Zandt County purple (multi-word counties)</li>
+            </ul>
+            <p><strong>Notes:</strong></p>
+            <ul>
+                <li>Color codes can be hex format (without #) or CSS color names</li>
+                <li>For multi-word counties, use %20 for spaces (e.g., Van%20Zandt) or + (e.g., Van+Zandt)</li>
+                <li>County names should match exactly (case-sensitive)</li>
+                <li>Multiple counties can be highlighted using & to separate parameters</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        class StateCountyMap {
+            constructor() {
+                this.selectedCounties = new Set();
+                this.urlFilledCounties = new Map();
+                this.countiesGeoJSON = null;
+                this.tooltip = document.getElementById('tooltip');
+                this.mapContainer = document.getElementById('map-container');
+                
+                // Zoom and pan state
+                this.currentTransform = { k: 1, x: 0, y: 0 };
+                this.originalViewBox = null;
+                
+                // Configuration - easy to change for other states
+                this.config = {
+                    stateFIPS: '48', // Texas FIPS code - change to '06' for California, '36' for New York, etc.
+                    stateName: 'Texas',
+                    majorCities: [
+                        { name: 'Houston', county: 'Harris', lat: 29.7604, lng: -95.3698 },
+                        { name: 'Dallas', county: 'Dallas', lat: 32.7767, lng: -96.7970 },
+                        { name: 'Austin', county: 'Travis', lat: 30.2672, lng: -97.7431 },
+                        { name: 'Midland', county: 'Midland', lat: 32.0251, lng: -102.1043 }
+                    ]
+                };
+                
+                this.init();
+            }
+            
+            async init() {
+                try {
+                    console.log('Starting map initialization...');
+                    await this.loadCountyData();
+                    console.log('County data loaded successfully');
+                    
+                    this.parseURLParameters();
+                    console.log('URL parameters parsed');
+                    
+                    this.renderMap();
+                    console.log('Map rendered');
+                    
+                    this.setupEventListeners();
+                    this.setupZoomControls();
+                    this.hideLoading();
+                    console.log('Map initialization complete');
+                } catch (error) {
+                    console.error('Map initialization failed:', error);
+                    this.showError('Failed to load map data: ' + error.message + '<br><br>Please check the browser console for more details.');
+                }
+            }
+            
+            async loadTopoJSONLibrary() {
+                return new Promise((resolve, reject) => {
+                    if (typeof topojson !== 'undefined') {
+                        resolve();
+                        return;
+                    }
+                    
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js';
+                    script.onload = () => resolve();
+                    script.onerror = () => reject(new Error('Failed to load TopoJSON library'));
+                    document.head.appendChild(script);
+                });
+            }
+            
+            filterStateCounties(data) {
+                console.log('Filtering counties, total features:', data.features.length);
+                
+                // Log the actual structure of the first few counties
+                if (data.features.length > 0) {
+                    console.log('First county full object:', JSON.stringify(data.features[0], null, 2));
+                    console.log('Properties keys:', Object.keys(data.features[0].properties || {}));
+                }
+                
+                // Filter US data to only include counties from the specified state
+                const stateFeatures = data.features.filter((feature, index) => {
+                    const props = feature.properties || {};
+                    
+                    // Log first few to understand structure
+                    if (index < 5) {
+                        console.log(`County ${index}:`, JSON.stringify(props, null, 2));
+                    }
+                    
+                    let stateFIPS = null;
+                    
+                    // Try different property names that might contain the FIPS code
+                    if (props.id) {
+                        stateFIPS = props.id.toString().substring(0, 2);
+                    } else if (props.FIPS) {
+                        stateFIPS = props.FIPS.toString().substring(0, 2);
+                    } else if (props.GEOID) {
+                        stateFIPS = props.GEOID.toString().substring(0, 2);
+                    } else if (props.STATE) {
+                        stateFIPS = props.STATE.toString();
+                    } else if (props.STATEFP) {
+                        stateFIPS = props.STATEFP.toString();
+                    } else if (feature.id) {
+                        // Sometimes the ID is at the feature level, not properties
+                        stateFIPS = feature.id.toString().substring(0, 2);
+                    }
+                    
+                    // Convert to string for comparison
+                    stateFIPS = stateFIPS ? stateFIPS.toString().padStart(2, '0') : '';
+                    const targetState = this.config.stateFIPS.toString().padStart(2, '0');
+                    
+                    if (index < 10) {
+                        console.log(`County ${feature.id || props.id || index}: stateFIPS=${stateFIPS}, target=${targetState}, match=${stateFIPS === targetState}`);
+                    }
+                    
+                    return stateFIPS === targetState;
+                });
+                
+                console.log(`Filtered ${stateFeatures.length} counties for state FIPS ${this.config.stateFIPS}`);
+                
+                return {
+                    type: "FeatureCollection",
+                    features: stateFeatures
+                };
+            }
+            
+            async loadCountyData() {
+                console.log('Loading county data...');
+                
+                // Load TopoJSON library first if not already loaded
+                if (typeof topojson === 'undefined') {
+                    console.log('Loading TopoJSON library...');
+                    await this.loadTopoJSONLibrary();
+                    console.log('TopoJSON library loaded');
+                }
+                
+                // Try multiple CORS-friendly public sources
+                const dataSources = [
+                    // US Atlas TopoJSON from Census Bureau (CORS-friendly)
+                    'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json',
+                    // Alternative: smaller resolution
+                    'https://cdn.jsdelivr.net/npm/us-atlas@3/counties-albers-10m.json',
+                    // Backup: unpkg CDN
+                    'https://unpkg.com/us-atlas@3/counties-10m.json'
+                ];
+                
+                let lastError = null;
+                
+                for (const source of dataSources) {
+                    try {
+                        console.log(`Trying data source: ${source}`);
+                        const response = await fetch(source);
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const topology = await response.json();
+                        console.log('Topology loaded successfully, objects available:', Object.keys(topology.objects));
+                        
+                        if (!topology.objects || !topology.objects.counties) {
+                            throw new Error('Invalid topology data: missing counties object');
+                        }
+                        
+                        // Convert TopoJSON to GeoJSON 
+                        const counties = topojson.feature(topology, topology.objects.counties);
+                        console.log('Converted to GeoJSON, total features:', counties.features.length);
+                        
+                        if (!counties.features || counties.features.length === 0) {
+                            throw new Error('No county features found in the data');
+                        }
+                        
+                        if (counties.features.length > 0) {
+                            console.log('Sample county properties:', counties.features[0].properties);
+                        }
+                        
+                        // Filter for state
+                        this.countiesGeoJSON = this.filterStateCounties(counties);
+                        
+                        if (this.countiesGeoJSON.features && this.countiesGeoJSON.features.length > 0) {
+                            console.log(`SUCCESS: Loaded ${this.countiesGeoJSON.features.length} counties for ${this.config.stateName}`);
+                            return;
+                        } else {
+                            throw new Error(`No counties found for state FIPS ${this.config.stateFIPS} (${this.config.stateName}). Check if the FIPS code is correct.`);
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to load from ${source}:`, error.message);
+                        lastError = error;
+                        if (source === dataSources[dataSources.length - 1]) {
+                            // This was the last source, throw the error
+                            throw new Error(`All data sources failed. Last error: ${error.message}. Check your internet connection and try refreshing the page.`);
+                        }
+                        continue;
+                    }
+                }
+                
+                // If we get here, all sources failed
+                throw lastError || new Error('Unknown error occurred while loading county data');
+            }
+            
+            parseURLParameters() {
+                const urlParams = new URLSearchParams(window.location.search);
+                
+                for (const [key, value] of urlParams) {
+                    if (key.startsWith('county_')) {
+                        let countyName = key.replace('county_', '');
+                        // Decode URL encoding for spaces and special characters
+                        countyName = decodeURIComponent(countyName.replace(/\+/g, ' '));
+                        
+                        // Handle color - if it doesn't start with #, add it (unless it's a CSS color name)
+                        let color = value;
+                        if (!color.startsWith('#') && !this.isCSSColorName(color)) {
+                            color = '#' + color;
+                        }
+                        
+                        this.urlFilledCounties.set(countyName, color);
+                        console.log(`URL Parameter found: "${countyName}" -> ${color}`);
+                    }
+                }
+                
+                // Display current URL parameters if any
+                if (this.urlFilledCounties.size > 0) {
+                    console.log('Counties to highlight from URL:', this.urlFilledCounties);
+                }
+            }
+            
+            isCSSColorName(color) {
+                // Check if it's a common CSS color name
+                const cssColors = ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'brown', 'black', 'white', 'gray', 'grey', 'cyan', 'magenta', 'lime', 'navy', 'teal', 'olive', 'maroon', 'silver'];
+                return cssColors.includes(color.toLowerCase());
+            }
+            
+            renderMap() {
+                console.log('Starting map render...');
+                
+                if (!this.countiesGeoJSON || !this.countiesGeoJSON.features) {
+                    throw new Error('No county data available for rendering');
+                }
+                
+                const svg = document.getElementById('texas-map');
+                const mapContent = document.getElementById('map-content');
+                
+                if (!svg || !mapContent) {
+                    throw new Error('Map SVG elements not found in DOM');
+                }
+                
+                // Calculate bounding box for the state
+                const bounds = this.calculateBounds();
+                const padding = 20;
+                const viewBox = `${bounds.minX - padding} ${bounds.minY - padding} ${bounds.width + 2*padding} ${bounds.height + 2*padding}`;
+                svg.setAttribute('viewBox', viewBox);
+                this.originalViewBox = viewBox; // Store for zoom reset
+                
+                console.log(`Rendering ${this.countiesGeoJSON.features.length} counties...`);
+                let renderedCount = 0;
+                let highlightedCount = 0;
+                
+                // Render counties
+                this.countiesGeoJSON.features.forEach(feature => {
+                    const props = feature.properties;
+                    // Handle different property name formats from different data sources
+                    const countyName = this.extractCountyName(props);
+                    
+                    if (!countyName || countyName.startsWith('County_Unknown')) {
+                        console.warn('Skipping county with unknown name:', props);
+                        return;
+                    }
+                    
+                    const path = this.createSVGPath(feature.geometry);
+                    
+                    if (!path || path.length < 10) {
+                        console.warn('Skipping county with invalid path:', countyName, path);
+                        return;
+                    }
+                    
+                    const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    pathElement.setAttribute('d', path);
+                    pathElement.setAttribute('class', 'county');
+                    pathElement.setAttribute('data-county', countyName);
+                    
+                    // Check for URL highlighting
+                    if (this.urlFilledCounties.has(countyName)) {
+                        pathElement.style.fill = this.urlFilledCounties.get(countyName);
+                        pathElement.classList.add('url-filled');
+                        console.log(`✓ Applied color ${this.urlFilledCounties.get(countyName)} to ${countyName} County`);
+                        highlightedCount++;
+                    }
+                    
+                    mapContent.appendChild(pathElement);
+                    renderedCount++;
+                });
+                
+                console.log(`Map render complete: ${renderedCount} counties rendered, ${highlightedCount} highlighted`);
+                
+                if (renderedCount === 0) {
+                    throw new Error('No counties were successfully rendered. Check data format and projection.');
+                }
+                
+                // Report on URL highlighting
+                if (this.urlFilledCounties.size > 0) {
+                    console.log(`URL highlighting status: ${highlightedCount}/${this.urlFilledCounties.size} counties found and highlighted`);
+                    
+                    // List counties that weren't found
+                    const notFound = [];
+                    for (const [countyName] of this.urlFilledCounties) {
+                        const found = this.countiesGeoJSON.features.some(feature => 
+                            this.extractCountyName(feature.properties) === countyName
+                        );
+                        if (!found) {
+                            notFound.push(countyName);
+                        }
+                    }
+                    
+                    if (notFound.length > 0) {
+                        console.warn('Counties not found for highlighting:', notFound);
+                        console.log('Available county names:', this.countiesGeoJSON.features.slice(0, 10).map(f => this.extractCountyName(f.properties)));
+                    }
+                }
+                
+                // Add major cities
+                this.addMajorCities(mapContent);
+            }
+            
+            extractCountyName(props) {
+                // Extract county name from various property formats
+                let name = props.NAME || props.name || props.NAME10 || props.NAMELSAD;
+                
+                // Handle TopoJSON format where county name might be in different properties
+                if (!name && props.NAMELSAD10) {
+                    name = props.NAMELSAD10.replace(' County', '');
+                }
+                
+                // Handle cases where name includes "County" suffix
+                if (name && name.includes(' County')) {
+                    name = name.replace(' County', '');
+                }
+                
+                if (!name && props.properties && props.properties.name) {
+                    name = props.properties.name;
+                }
+                
+                return name || `County_${props.id || 'Unknown'}`;
+            }
+            
+            calculateBounds() {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                
+                this.countiesGeoJSON.features.forEach(feature => {
+                    this.processGeometryBounds(feature.geometry, (lng, lat) => {
+                        const [x, y] = this.projectCoordinate(lng, lat);
+                        minX = Math.min(minX, x);
+                        minY = Math.min(minY, y);
+                        maxX = Math.max(maxX, x);
+                        maxY = Math.max(maxY, y);
+                    });
+                });
+                
+                return {
+                    minX, minY, maxX, maxY,
+                    width: maxX - minX,
+                    height: maxY - minY
+                };
+            }
+            
+            processGeometryBounds(geometry, callback) {
+                if (geometry.type === 'Polygon') {
+                    geometry.coordinates[0].forEach(coord => {
+                        const [lng, lat] = coord;
+                        callback(lng, lat);
+                    });
+                } else if (geometry.type === 'MultiPolygon') {
+                    geometry.coordinates.forEach(polygon => {
+                        polygon[0].forEach(coord => {
+                            const [lng, lat] = coord;
+                            callback(lng, lat);
+                        });
+                    });
+                }
+            }
+            
+            projectCoordinate(lng, lat) {
+                // Simple projection: scale and flip Y coordinate for SVG
+                // Adjust these values based on the state
+                const xOffset = this.config.stateFIPS === '48' ? 107 : 125; // Different offset for different states
+                const x = (lng + xOffset) * 10;
+                const y = (36 - lat) * 10;
+                return [x, y];
+            }
+            
+            createSVGPath(geometry) {
+                let path = '';
+                
+                if (geometry.type === 'Polygon') {
+                    const coords = geometry.coordinates[0];
+                    path = this.coordsToPath(coords);
+                } else if (geometry.type === 'MultiPolygon') {
+                    geometry.coordinates.forEach((polygon, index) => {
+                        const coords = polygon[0];
+                        if (index > 0) path += ' ';
+                        path += this.coordsToPath(coords);
+                    });
+                }
+                
+                return path;
+            }
+            
+            coordsToPath(coords) {
+                let pathStr = '';
+                
+                coords.forEach((coord, index) => {
+                    const [lng, lat] = coord;
+                    const [x, y] = this.projectCoordinate(lng, lat);
+                    
+                    if (index === 0) {
+                        pathStr += `M ${x} ${y}`;
+                    } else {
+                        pathStr += ` L ${x} ${y}`;
+                    }
+                });
+                
+                pathStr += ' Z';
+                return pathStr;
+            }
+            
+            addMajorCities(container) {
+                this.config.majorCities.forEach(city => {
+                    const [x, y] = this.projectCoordinate(city.lng, city.lat);
+                    
+                    // City marker
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', x);
+                    circle.setAttribute('cy', y);
+                    circle.setAttribute('r', '1');
+                    circle.setAttribute('class', 'city');
+                    container.appendChild(circle);
+                    
+                    // City label
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', x);
+                    text.setAttribute('y', y - 3);
+                    text.setAttribute('class', 'city-label');
+                    text.textContent = city.name;
+                    container.appendChild(text);
+                });
+            }
+            
+            setupZoomControls() {
+                const svg = document.getElementById('texas-map');
+                const mapContent = document.getElementById('map-content');
+                
+                // Zoom in
+                document.getElementById('zoom-in').addEventListener('click', () => {
+                    this.zoom(1.5, svg, mapContent);
+                });
+                
+                // Zoom out  
+                document.getElementById('zoom-out').addEventListener('click', () => {
+                    this.zoom(1/1.5, svg, mapContent);
+                });
+                
+                // Reset zoom
+                document.getElementById('zoom-reset').addEventListener('click', () => {
+                    this.resetZoom(svg, mapContent);
+                });
+                
+                // Mouse wheel zoom - FIXED
+                svg.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const zoomFactor = e.deltaY > 0 ? 1/1.1 : 1.1;
+                    
+                    // Get mouse position relative to SVG
+                    const rect = svg.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+                    
+                    this.zoom(zoomFactor, svg, mapContent, { x: mouseX, y: mouseY });
+                });
+                
+                // Pan functionality
+                let isPanning = false;
+                let startPoint = { x: 0, y: 0 };
+                
+                svg.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('county')) return; // Don't pan when clicking counties
+                    isPanning = true;
+                    startPoint = { x: e.clientX, y: e.clientY };
+                    svg.style.cursor = 'grabbing';
+                });
+                
+                svg.addEventListener('mousemove', (e) => {
+                    if (!isPanning) return;
+                    
+                    const dx = e.clientX - startPoint.x;
+                    const dy = e.clientY - startPoint.y;
+                    
+                    this.currentTransform.x += dx / this.currentTransform.k;
+                    this.currentTransform.y += dy / this.currentTransform.k;
+                    
+                    this.applyTransform(mapContent);
+                    
+                    startPoint = { x: e.clientX, y: e.clientY };
+                });
+                
+                svg.addEventListener('mouseup', () => {
+                    isPanning = false;
+                    svg.style.cursor = 'default';
+                });
+                
+                svg.addEventListener('mouseleave', () => {
+                    isPanning = false;
+                    svg.style.cursor = 'default';
+                });
+            }
+            
+            zoom(factor, svg, mapContent, center = null) {
+                if (center) {
+                    // Zoom towards a specific point (like mouse cursor)
+                    const [vbX, vbY, vbW, vbH] = this.originalViewBox.split(' ').map(Number);
+                    
+                    // Convert screen coordinates to SVG coordinates
+                    const svgRect = svg.getBoundingClientRect();
+                    const scaleX = vbW / svgRect.width;
+                    const scaleY = vbH / svgRect.height;
+                    
+                    const svgX = vbX + (center.x * scaleX);
+                    const svgY = vbY + (center.y * scaleY);
+                    
+                    this.currentTransform.x = svgX - (svgX - this.currentTransform.x) * factor;
+                    this.currentTransform.y = svgY - (svgY - this.currentTransform.y) * factor;
+                } else {
+                    // Zoom towards center
+                    const [vbX, vbY, vbW, vbH] = this.originalViewBox.split(' ').map(Number);
+                    const centerX = vbX + vbW / 2;
+                    const centerY = vbY + vbH / 2;
+                    
+                    this.currentTransform.x = centerX - (centerX - this.currentTransform.x) * factor;
+                    this.currentTransform.y = centerY - (centerY - this.currentTransform.y) * factor;
+                }
+                
+                this.currentTransform.k *= factor;
+                
+                // Limit zoom range
+                this.currentTransform.k = Math.max(0.5, Math.min(10, this.currentTransform.k));
+                
+                this.applyTransform(mapContent);
+            }
+            
+            resetZoom(svg, mapContent) {
+                this.currentTransform = { k: 1, x: 0, y: 0 };
+                this.applyTransform(mapContent);
+            }
+            
+            applyTransform(mapContent) {
+                const transform = `translate(${this.currentTransform.x}, ${this.currentTransform.y}) scale(${this.currentTransform.k})`;
+                mapContent.setAttribute('transform', transform);
+            }
+            
+            setupEventListeners() {
+                const counties = document.querySelectorAll('.county');
+                
+                counties.forEach(county => {
+                    county.addEventListener('mouseenter', (e) => this.showTooltip(e));
+                    county.addEventListener('mousemove', (e) => this.updateTooltipPosition(e));
+                    county.addEventListener('mouseleave', () => this.hideTooltip());
+                    county.addEventListener('click', (e) => this.handleCountyClick(e));
+                });
+            }
+            
+            showTooltip(event) {
+                const countyName = event.target.getAttribute('data-county');
+                this.tooltip.textContent = countyName + ' County';
+                this.tooltip.style.display = 'block';
+                this.updateTooltipPosition(event);
+            }
+            
+            updateTooltipPosition(event) {
+                const rect = this.mapContainer.getBoundingClientRect();
+                this.tooltip.style.left = (event.clientX - rect.left + 10) + 'px';
+                this.tooltip.style.top = (event.clientY - rect.top - 30) + 'px';
+            }
+            
+            hideTooltip() {
+                this.tooltip.style.display = 'none';
+            }
+            
+            handleCountyClick(event) {
+                const county = event.target;
+                const countyName = county.getAttribute('data-county');
+                
+                if (county.classList.contains('url-filled')) {
+                    return;
+                }
+                
+                if (this.selectedCounties.has(countyName)) {
+                    this.selectedCounties.delete(countyName);
+                    county.classList.remove('selected');
+                } else {
+                    this.selectedCounties.add(countyName);
+                    county.classList.add('selected');
+                }
+                
+                this.updateSelectionDisplay();
+            }
+            
+            updateSelectionDisplay() {
+                const container = document.getElementById('selected-counties');
+                const copyBtn = document.getElementById('copy-counties');
+                
+                if (this.selectedCounties.size === 0) {
+                    container.innerHTML = '<span style="color: #666; font-style: italic;">Click counties to select them</span>';
+                    copyBtn.disabled = true;
+                } else {
+                    container.innerHTML = Array.from(this.selectedCounties)
+                        .map(county => `<span class="county-tag">${county} County</span>`)
+                        .join('');
+                    copyBtn.disabled = false;
+                }
+            }
+            
+            setupCopyFunction() {
+                const copyBtn = document.getElementById('copy-counties');
+                const copySuccess = document.getElementById('copy-success');
+                
+                if (!copyBtn || !copySuccess) {
+                    console.error('Copy button or success element not found');
+                    return;
+                }
+                
+                console.log('Setting up copy function');
+                
+                copyBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    console.log('Copy button clicked, selected counties:', this.selectedCounties);
+                    
+                    if (this.selectedCounties.size === 0) {
+                        console.log('No counties selected');
+                        return;
+                    }
+                    
+                    const countiesList = Array.from(this.selectedCounties).join(', ');
+                    console.log('Counties list to copy:', countiesList);
+                    
+                    // Try the fallback method directly since it's more reliable
+                    const textArea = document.createElement('textarea');
+                    textArea.value = countiesList;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        const successful = document.execCommand('copy');
+                        if (successful) {
+                            copySuccess.classList.add('show');
+                            setTimeout(() => {
+                                copySuccess.classList.remove('show');
+                            }, 2000);
+                            console.log('Successfully copied to clipboard:', countiesList);
+                        } else {
+                            throw new Error('execCommand copy failed');
+                        }
+                    } catch (error) {
+                        console.error('Copy failed:', error);
+                        // Show the list in an alert as last resort
+                        prompt('Copy failed. Please manually copy this list:', countiesList);
+                    } finally {
+                        document.body.removeChild(textArea);
+                    }
+                });
+                
+                // Initialize button state
+                copyBtn.disabled = true;
+                console.log('Copy function setup complete');
+            }
+            
+            setupHelpToggle() {
+                const helpBtn = document.getElementById('help-toggle');
+                const urlInfo = document.querySelector('.url-info');
+                
+                if (!helpBtn || !urlInfo) {
+                    console.error('Help button or URL info element not found');
+                    return;
+                }
+                
+                console.log('Setting up help toggle');
+                
+                helpBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    console.log('Help button clicked');
+                    
+                    urlInfo.classList.toggle('show');
+                    const isShowing = urlInfo.classList.contains('show');
+                    helpBtn.textContent = isShowing ? '×' : '?';
+                    helpBtn.title = isShowing ? 'Hide URL Parameters Help' : 'Show URL Parameters Help';
+                    
+                    console.log('Help section', isShowing ? 'shown' : 'hidden');
+                });
+                
+                console.log('Help toggle setup complete');
+            }
+            
+            hideLoading() {
+                document.getElementById('loading').style.display = 'none';
+                this.mapContainer.style.display = 'block';
+                
+                // Setup functions that depend on DOM elements being visible
+                this.setupCopyFunction();
+                this.setupHelpToggle();
+            }
+            
+            showError(message) {
+                console.error('Showing error:', message);
+                const loadingElement = document.getElementById('loading');
+                if (loadingElement) {
+                    loadingElement.innerHTML = `<div class="error">${message}<br><br><strong>Troubleshooting:</strong><br>1. Check your internet connection<br>2. Try refreshing the page<br>3. Check the browser console (F12) for more details</div>`;
+                    loadingElement.style.display = 'block';
+                }
+                
+                // Also hide the map container if it's showing
+                const mapContainer = document.getElementById('map-container');
+                if (mapContainer) {
+                    mapContainer.style.display = 'none';
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            new StateCountyMap();
+        });
+    </script>
+</body>
+</html>
